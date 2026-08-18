@@ -1,0 +1,4 @@
+<resources>
+    <string name="app_name">SubWhitelist</string>
+    <string name="app_desc">为 Xiaomi SubScreenCenter 背屏音乐白名单添加自定义包名（LSPosed 模块）</string>
+</resources>

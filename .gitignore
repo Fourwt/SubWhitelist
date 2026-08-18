@@ -1,0 +1,22 @@
+# ---- Gradle ----
+.gradle/
+build/
+
+# ---- Android ----
+# 本机 SDK 路径，绝不上传
+local.properties
+*.apk
+*.aab
+*.keystore
+*.jks
+
+# ---- IDE ----
+.idea/
+*.iml
+.vscode/
+captures/
+
+# ---- 系统 / 日志 ----
+.DS_Store
+Thumbs.db
+*.log
