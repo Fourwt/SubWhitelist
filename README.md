@@ -1,89 +1,50 @@
 # SubWhitelist
 
-一个基于 **libxposed 现代 API 102** 的 LSPosed 模块：让用户自定义的 Android 包名通过
-Xiaomi/HyperOS **SubScreenCenter（背屏）** 的音乐白名单判断，同时保持其它所有原始行为不变。
+给小米背屏（SubScreenCenter）的音乐白名单加自定义包名的 LSPosed 模块。
 
-- 目标应用：`com.xiaomi.subscreencenter`
-- 框架要求：LSPosed ≥ 2.1.1（libxposed API 102）
-- 依赖：`io.github.libxposed:api:102.0.0`（compileOnly，不打包）+ `io.github.libxposed:service:102.0.0`（implementation，仅模块 UI 用）
+背屏默认只认几个内置音乐 App（小米音乐、QQ 音乐、网易云、酷狗那些），其它播放器放歌不会在背屏弹音乐卡片。这个模块 Hook 一下它判断「是不是音乐应用」的地方，让你指定的包名也能通过判断，其它逻辑一律不动。
 
-## 一、Hook 点（已通过 APK 逆向确认）
+## 原理
 
-目标 APK 只有一个 `classes.dex`，白名单判断集中在混淆类 `A2.a`：
+反编译 `com.xiaomi.subscreencenter` 看到，背屏判断音乐包的地方是混淆类 `A2.a` 的两个静态方法：
 
-| Hook | 方法 | 签名 | 作用 |
-|---|---|---|---|
-| 主 | `A2.a.c` | `boolean c(String)` | 背屏智能助手音乐卡片"是否音乐包"分类器（链路①所有关卡都先调它） |
-| 辅 | `A2.a.b` | `HashSet<String> b()` | 喂给 MAML `MusicController.sMusicPackages` 的白名单数据源（覆盖链路② `ActiveAudioSessionManager` 过滤） |
+- `boolean c(String)` —— 判断某个包是不是音乐应用，背屏音乐卡片的所有判断都先过它
+- `HashSet b()` —— 生成喂给 MAML 音乐控件的白名单
 
-两者都遵循：**仅对用户自定义包名返回 true / 追加包名，其余严格返回 originalResult**。
+模块只做两件事：你在 App 里加的包名，`c()` 对它返回 true，`b()` 把它塞进结果。其余包该怎么判还怎么判。
 
-## 二、目录结构
+## 编译
 
-```
-app/src/main/
-├── AndroidManifest.xml                      # Application + MainActivity（XposedProvider 由 service AAR 自动合并）
-├── java/com/subwhitelist/
-│   ├── ModuleMain.java                      # 模块入口（继承 XposedModule），Hook 逻辑
-│   ├── App.java                             # 注册 LSPosed 服务监听，拿到可写远程配置
-│   └── MainActivity.java                    # 白名单管理 UI
-├── res/...                                  # 布局 / 字符串
-└── resources/META-INF/xposed/
-    ├── java_init.list                       # 入口：com.subwhitelist.ModuleMain
-    ├── scope.list                           # 作用域：com.xiaomi.subscreencenter
-    └── module.prop                          # minApiVersion=101 / targetApiVersion=102 / staticScope=true
-```
+Android Studio 直接打开 Build 就行，首次同步会自动装 AGP 9.2.1 和 android-37 平台。或者命令行：
 
-## 三、构建
-
-### Android Studio（推荐）
-直接 `File → Open` 打开本目录，等待 Gradle 同步后 `Build → Build APK(s)`。
-首次同步会自动安装 `platforms;android-37`（AGP 9.2.1 要求 compileSdk 37）。
-
-### 命令行
 ```bash
-# Windows（本机已配 JAVA_HOME = Android Studio 自带 JBR）
 ./gradlew assembleDebug
 ```
-产物：`app/build/outputs/apk/debug/app-debug.apk`
 
-> 依赖版本：AGP `9.2.1`、Gradle `9.5.1`、compileSdk `37`、minSdk `26`、targetSdk `34`。
+产物在 `app/build/outputs/apk/debug/app-debug.apk`。
 
-## 四、安装与启用
+## 使用
 
-1. 在 LSPosed 管理器里安装生成的 APK。
-2. 启用本模块，作用域勾选 **`com.xiaomi.subscreencenter`**（`scope.list` 已声明，`staticScope=true` 锁定）。
-3. 打开模块 App（Material UI），添加自定义包名（如 `com.example.music`）。
-4. 点右上角 **刷新图标**（重启背屏）——需在 KernelSU 中授予本模块 Root 权限；或手动 Force Stop `SubScreenCenter` / 重启手机，使 Hook 生效。
+1. 装 APK，LSPosed 里启用，作用域勾 `com.xiaomi.subscreencenter`（已锁定）。
+2. 打开 App，填包名（比如 `com.example.music`），添加。
+3. 点右上角刷新图标重启背屏（走 `su -c am force-stop`，KernelSU 里给下 root 权限）。
 
-> UI 说明：右上角刷新图标 = 重启背屏；右上角三点溢出菜单 = Debug 日志开关（默认隐藏）；列表项点击 = 复制包名，右侧删除图标 = 移除该包（带「撤销」）。
+右上角三个点是 Debug 日志开关。列表点一下复制包名，右边垃圾桶删掉（带撤销）。
 
-## 五、验证
+## 验证
 
 ```bash
 adb logcat -s SubScreenWhitelist
 ```
 
-预期日志：
+看到 `Target method found: A2.a.c(String)` 就是 Hook 上了。命中自定义包时会打：
 
 ```
-Hook initialized
-Target method found: A2.a.c(String)
-Target method found: A2.a.b()
 package=com.example.music original=false custom=true final=true
 ```
 
-- 其它包名不会刷日志（只在 Debug 开启时打印命中自定义白名单的包）。
-- 若看不到 `Target method found`，说明作用域未生效或目标进程未重启。
+## 其它
 
-## 六、配置存储
-
-- UI 进程通过 `XposedServiceHelper` + `XposedService.getRemotePreferences("whitelist")` **写入** LSPosed 远程配置。
-- Hook 进程通过 `getRemotePreferences("whitelist")` **只读**。
-- 键：`packages`（StringSet，白名单包名）、`debug`（boolean，日志开关）。
-
-## 七、注意事项
-
-- 修改白名单后需**重启目标进程**才会重新加载配置；可直接点 App 内「重启背屏」按钮（等价于 `su -c "am force-stop com.xiaomi.subscreencenter"`）。
-- 模块不修改 `subscreencenter.apk`、不修改 `subPackages.db`、不 Hook 全局 PackageManager，仅在目标进程内做返回值包装。
-- 若目标方法被 ART 内联，已调用 `deoptimize()` 兜底；Hook 全程 `ExceptionMode.PROTECTIVE`，异常不会拖垮目标进程。
+- 改完白名单要重启背屏才生效。
+- 不碰 APK、不碰 `subPackages.db`、不 Hook 全局 PackageManager，只在背屏进程里改返回值。
+- 配置存在 LSPosed 远程 SharedPreferences 里，App 写、Hook 进程读。
