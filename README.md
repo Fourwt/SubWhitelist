@@ -1,8 +1,6 @@
 # SubWhitelist
 
-给小米背屏（SubScreenCenter）的音乐白名单加自定义包名的 LSPosed 模块。
-
-背屏默认只认几个内置音乐 App（小米音乐、QQ 音乐、网易云、酷狗那些），其它播放器放歌不会在背屏弹音乐卡片。这个模块 Hook 一下它判断「是不是音乐应用」的地方，让你指定的包名也能通过判断，其它逻辑一律不动。
+给小米背屏音乐白名单加自定义包名的 LSPosed 模块，让任意指定的 App 能像内置音乐 App 一样被背屏识别。
 
 ## 原理
 
@@ -18,9 +16,3 @@
 1. 安装 APK，在 LSPosed 里启用，作用域选 `com.xiaomi.subscreencenter`
 2. 打开 App，添加包名（比如 `com.example.music`）
 3. 点右上角刷新图标重启背屏（需要 Root）
-
-## 构建
-
-```bash
-./gradlew assembleDebug
-```
