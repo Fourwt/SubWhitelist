@@ -32,7 +32,8 @@ public class ModuleMain extends XposedModule {
     private static final String PREFS_KEY_DEBUG = "debug";
 
     private static final String TARGET_PACKAGE = "com.xiaomi.subscreencenter";
-    private static final String TARGET_CLASS = "A2.a";
+    // 新版混淆为 m2.a，旧版为 A2.a；按序尝试，命中哪个用哪个
+    private static final String[] TARGET_CLASSES = {"m2.a", "A2.a"};
 
     private volatile Set<String> mWhitelist = new HashSet<>();
     private volatile boolean mDebug = false;
@@ -58,7 +59,20 @@ public class ModuleMain extends XposedModule {
 
     @SuppressWarnings("unchecked")
     private void installHooks(ClassLoader classLoader) throws Throwable {
-        Class<?> clazz = classLoader.loadClass(TARGET_CLASS); // A2.a
+        Class<?> clazz = null;
+        for (String name : TARGET_CLASSES) {
+            try {
+                clazz = classLoader.loadClass(name);
+                break;
+            } catch (ClassNotFoundException ignored) {
+            }
+        }
+        if (clazz == null) {
+            log(Log.ERROR, TAG, "Target class not found");
+            return;
+        }
+        String cls = clazz.getName();
+        log(Log.INFO, TAG, "Target class: " + cls);
 
         // 主 Hook：boolean c(String)
         Method methodC = clazz.getDeclaredMethod("c", String.class);
@@ -77,7 +91,7 @@ public class ModuleMain extends XposedModule {
                     }
                     return original;
                 });
-        log(Log.INFO, TAG, "Target method found: " + TARGET_CLASS + ".c(String)");
+        log(Log.INFO, TAG, "Target method found: " + cls + ".c(String)");
 
         // 辅 Hook：HashSet b()
         Method methodB = clazz.getDeclaredMethod("b");
@@ -91,7 +105,7 @@ public class ModuleMain extends XposedModule {
                     }
                     return result;
                 });
-        log(Log.INFO, TAG, "Target method found: " + TARGET_CLASS + ".b()");
+        log(Log.INFO, TAG, "Target method found: " + cls + ".b()");
     }
 
     private void loadConfig() {
